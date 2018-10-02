@@ -3062,10 +3062,9 @@ _dhd_pno_get_for_batch(dhd_pub_t *dhd, char *buf, int bufsize, int reason)
 		list_del(&pscan_results->list);
 		MFREE(dhd->osh, pscan_results, SCAN_RESULTS_SIZE);
 		_params->params_batch.get_batch.top_node_cnt--;
-	} else {
-		/* increase total scan count using current scan count */
-		_params->params_batch.get_batch.tot_scan_cnt += pscan_results->cnt_header;
 	}
+	/* increase total scan count using current scan count */
+	_params->params_batch.get_batch.tot_scan_cnt += pscan_results->cnt_header;
 
 	if (buf && bufsize) {
 		/* This is a first try to get batching results */
@@ -3612,17 +3611,7 @@ void * dhd_handle_swc_evt(dhd_pub_t *dhd, const void *event_data, int *send_evt_
 	}
 
 	change_array = &params->change_array[params->results_rxed_so_far];
-	if ((params->results_rxed_so_far + results->pkt_count) >
-		results->total_count) {
-		DHD_ERROR(("Error: Invalid data reset the counters!!\n"));
-		*send_evt_bytes = 0;
-		kfree(params->change_array);
-		params->change_array = NULL;
-		return ptr;
-	}
-
-	memcpy(change_array, results->list,
-		sizeof(wl_pfn_significant_net_t) * results->pkt_count);
+	memcpy(change_array, results->list, sizeof(wl_pfn_significant_net_t) * results->pkt_count);
 	params->results_rxed_so_far += results->pkt_count;
 
 	if (params->results_rxed_so_far == results->total_count) {
@@ -3679,7 +3668,6 @@ dhd_process_full_gscan_result(dhd_pub_t *dhd, const void *data, int *size)
 	uint8 channel;
 	uint32 mem_needed;
 	struct timespec ts;
-	wl_event_gas_t *gas_data;
 
 	*size = 0;
 
@@ -3700,22 +3688,9 @@ dhd_process_full_gscan_result(dhd_pub_t *dhd, const void *data, int *size)
 		DHD_ERROR(("Invalid bss_info length %d: ignoring\n", bi_length));
 		goto exit;
 	}
-	if ((bi->SSID_len > DOT11_MAX_SSID_LEN)||
-		(bi->ie_length > (*size - sizeof(wl_bss_info_t))) ||
-		(bi->ie_offset < sizeof(wl_bss_info_t)) ||
-		(bi->ie_offset > (sizeof(wl_bss_info_t) + bi->ie_length))){
-		DHD_ERROR(("%s: tot:%d,SSID:%d,ie_len:%d,ie_off:%d\n",
-			__FUNCTION__, *size, bi->SSID_len,
-			bi->ie_length, bi->ie_offset));
-		return NULL;
-	}
-
-	gas_data = (wl_event_gas_t *)((uint8 *)data + bi->ie_offset + bi->ie_length);
-
-	if (gas_data->data_len > (*size - (bi->ie_offset + bi->ie_length))) {
-		DHD_ERROR(("%s: wrong gas_data_len:%d\n",
-			__FUNCTION__, gas_data->data_len));
-		return NULL;
+	if (bi->SSID_len > DOT11_MAX_SSID_LEN) {
+		DHD_ERROR(("Invalid SSID length %d: trimming it to max\n", bi->SSID_len));
+		bi->SSID_len = DOT11_MAX_SSID_LEN;
 	}
 
 	mem_needed = OFFSETOF(wifi_gscan_result_t, ie_data) + bi->ie_length;

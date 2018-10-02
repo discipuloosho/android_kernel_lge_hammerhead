@@ -1,6 +1,10 @@
 #
 # Makefile for the Linux Bluetooth HCI device drivers.
 #
+# By binkybear @ https://raw.githubusercontent.com/binkybear/kernel_msm/android-msm-hammerhead-3.4-lollipop-release/drivers/bluetooth/Makefile
+
+KBUILD_CFLAGS += -w
+KBUILD_CFLAGS += -Wno-error=unused-but-set-variable
 
 obj-$(CONFIG_BT_HCISMD)		+= hci_smd.o
 obj-$(CONFIG_BT_HCIVHCI)	+= hci_vhci.o
@@ -34,3 +38,4 @@ hci_uart-objs				:= $(hci_uart-y)
 obj-$(CONFIG_BT_MSM_SLEEP)              += msm_bt_sleep.o
 msm_bt_sleep-objs                       := bluesleep.o
 obj-$(CONFIG_MSM_BT_POWER)		+= bluetooth-power.o
+

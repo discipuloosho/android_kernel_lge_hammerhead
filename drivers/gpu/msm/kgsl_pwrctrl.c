@@ -44,6 +44,10 @@
 #define INIT_UDELAY		200
 #define MAX_UDELAY		2000
 
+#ifdef CONFIG_CPU_FREQ_GOV_ELEMENTALX
+int graphics_boost = 6;
+#endif
+
 struct clk_pair {
 	const char *name;
 	uint map;
@@ -188,6 +192,10 @@ void kgsl_pwrctrl_pwrlevel_change(struct kgsl_device *device,
 
 
 	trace_kgsl_pwrlevel(device, pwr->active_pwrlevel, pwrlevel->gpu_freq);
+
+#ifdef CONFIG_CPU_FREQ_GOV_ELEMENTALX
+        graphics_boost = pwr->active_pwrlevel;
+#endif
 }
 
 EXPORT_SYMBOL(kgsl_pwrctrl_pwrlevel_change);
@@ -476,11 +484,17 @@ static int kgsl_pwrctrl_gpuclk_show(struct device *dev,
 {
 	struct kgsl_device *device = kgsl_device_from_dev(dev);
 	struct kgsl_pwrctrl *pwr;
+	unsigned int level;
+
 	if (device == NULL)
 		return 0;
 	pwr = &device->pwrctrl;
+	if (device->state == KGSL_STATE_SLUMBER)
+		level = pwr->num_pwrlevels - 1;
+	else
+		level = pwr->active_pwrlevel;
 	return snprintf(buf, PAGE_SIZE, "%d\n",
-			pwr->pwrlevels[pwr->active_pwrlevel].gpu_freq);
+			pwr->pwrlevels[level].gpu_freq);
 }
 
 static int kgsl_pwrctrl_idle_timer_store(struct device *dev,
@@ -491,7 +505,7 @@ static int kgsl_pwrctrl_idle_timer_store(struct device *dev,
 	unsigned long val;
 	struct kgsl_device *device = kgsl_device_from_dev(dev);
 	struct kgsl_pwrctrl *pwr;
-	const long div = 1000/HZ;
+	const long div = 1000/msecs_to_jiffies(1000);
 	int rc;
 
 	if (device == NULL)
@@ -520,7 +534,7 @@ static int kgsl_pwrctrl_idle_timer_show(struct device *dev,
 					char *buf)
 {
 	struct kgsl_device *device = kgsl_device_from_dev(dev);
-	int mul = 1000/HZ;
+	int mul = 1000/msecs_to_jiffies(1000);
 	if (device == NULL)
 		return 0;
 	/* Show the idle_timeout converted to msec */
@@ -1083,7 +1097,7 @@ int kgsl_pwrctrl_init(struct kgsl_device *device)
 	pwr->power_flags = 0;
 
 	pwr->idle_needed = pdata->idle_needed;
-	pwr->interval_timeout = pdata->idle_timeout;
+	pwr->interval_timeout = msecs_to_jiffies(pdata->idle_timeout);
 	pwr->strtstp_sleepwake = pdata->strtstp_sleepwake;
 	pwr->ebi1_clk = clk_get(&pdev->dev, "bus_clk");
 	if (IS_ERR(pwr->ebi1_clk))
@@ -1634,7 +1648,8 @@ int kgsl_active_count_wait(struct kgsl_device *device, int count)
 		int ret;
 		mutex_unlock(&device->mutex);
 		ret = wait_event_timeout(device->active_cnt_wq,
-			_check_active_count(device, count), HZ);
+			_check_active_count(device, count),
+				msecs_to_jiffies(1000));
 		mutex_lock(&device->mutex);
 		result = ret == 0 ? -ETIMEDOUT : 0;
 	}
